@@ -20,9 +20,7 @@ import {
 } from "lucide-react";
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Routes, Route, Link, useNavigate } from "react-router-dom";
-import { io } from "socket.io-client";
-
-const socket = io();
+const DB_URL = "https://kvdb.io/M5cpvUdqjBMqQB3gxhMtG8/messages";
 
 const CursorTrail = () => {
   const [particles, setParticles] = useState<{ id: string; x: number; y: number }[]>([]);
@@ -455,24 +453,22 @@ const TerminalWall = () => {
   const navigate = useNavigate();
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  const fetchMessages = async () => {
+    try {
+      const res = await fetch(DB_URL);
+      const text = await res.text();
+      if (text) {
+        setMessages(JSON.parse(text));
+      }
+    } catch (e) {
+      console.error("Failed to fetch messages");
+    }
+  };
+
   useEffect(() => {
-    socket.on("init-messages", (history: any[]) => {
-      setMessages(history);
-    });
-
-    socket.on("new-message", (message: any) => {
-      setMessages((prev) => [...prev, message]);
-    });
-
-    socket.on("clear", () => {
-      setMessages([]);
-    });
-
-    return () => {
-      socket.off("init-messages");
-      socket.off("new-message");
-      socket.off("clear");
-    };
+    fetchMessages();
+    const interval = setInterval(fetchMessages, 3000);
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -481,11 +477,27 @@ const TerminalWall = () => {
     }
   }, [messages]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim()) return;
-    socket.emit("send-message", { text: input });
+    
+    const newMessage = {
+      text: input,
+      id: Math.random().toString(36).substring(7),
+      timestamp: new Date().toISOString(),
+    };
+    
     setInput("");
+    
+    setMessages((prev) => {
+      const updated = [...prev, newMessage].slice(-100);
+      fetch(DB_URL, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updated)
+      }).catch(console.error);
+      return updated;
+    });
   };
 
   return (

@@ -1,0 +1,32 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: messages
+    // Document ID: auto-generated
+    // Fields:
+    //   - text: string (required, max 280 chars)
+    //   - timestamp: string (required, ISO 8601 format)
+    //
+    // ===============================================================
+
+    // Helper functions
+    function isValidMessage(data) {
+      return data.keys().hasAll(['text', 'timestamp']) &&
+             data.text is string && data.text.size() > 0 && data.text.size() <= 280 &&
+             data.timestamp is string;
+    }
+
+    match /messages/{messageId} {
+      // Allow anyone to read messages
+      allow read: if true;
+      // Allow anyone to create a message if it's valid
+      allow create: if isValidMessage(request.resource.data);
+      // Deny update and delete for now
+      allow update, delete: if false;
+    }
+  }
+}
